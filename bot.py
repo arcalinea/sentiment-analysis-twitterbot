@@ -1,4 +1,4 @@
-import sys, urllib, sentiment, json
+import sys, urllib, sentiment, json, time
 import optparse
 
 import tweepy
@@ -37,26 +37,20 @@ def get_client_access():
 class MyStreamListener(tweepy.StreamListener):
     def on_status(self, status):
         print(status.text)
-        words = status.text.split(' ')
-        tweetId = status.id_str
-        requester = status.user.screen_name
-        print "Requester", requester
-        print "tweetId", tweetId
-        print "words", words
-        users = []
-        for w in words: 
-            if w[:1] == "@" and w[1:] != "howrufeelingbot":
-                users.append(w[1:])
-        print "On status users", users
-        process_users(users, tweetId, requester)
-        # with open('tweet.tmp', 'w') as f:
-        #     f.write(users)
-
-def listen_for_mentions(keyword, api):
-    myStreamListener = MyStreamListener()
-    myStream = tweepy.Stream(auth = api.auth, listener=myStreamListener)
-    myStream.filter(track=[keyword], async=True)
-    print "Listening..."
+        try: 
+            words = status.text.split(' ')
+            tweetId = status.id_str
+            requester = status.user.screen_name
+            users = []
+            for w in words: 
+                if w[:1] == "@" and w[1:] != "howrufeelingbot":
+                    users.append(w[1:])
+            print "On status users", users
+            process_users(users, tweetId, requester)
+            # with open('tweet.tmp', 'w') as f:
+            #     f.write(users)
+        except Exception as e:
+            print "Error occured while parsing tweet", e
     
 def process_users(users, tweetId, requester):
     auth = tweepy.OAuthHandler(C_KEY, C_SECRET)    
@@ -108,8 +102,11 @@ def analyze_sentiment(user, api, tweetId, requester):
 
 def tweet_result(user, num_tweets, positive, negative, unknown, pos_percent, neg_percent, tweetId, requester):
     result = "@{7} I analyzed {0} of @{1}'s tweets. Here are the results: {2} positive, {3} negative, {4} unknown. Overall, {5}% are positive and {6}% are negative!".format(num_tweets, user, positive, negative, unknown, pos_percent, neg_percent, requester)
-    print "TWEET ID FOR REPLY", tweetId
-    api.update_status(result, in_reply_to_status_id=tweetId)
+    print "Tweet id to reply to:", tweetId
+    try: 
+        api.update_status(result, in_reply_to_status_id=tweetId)
+    except Exception as e:
+        print "Tweeting result failed:", e
                     
 
 if __name__ == "__main__":
@@ -117,7 +114,14 @@ if __name__ == "__main__":
     auth.set_access_token(ACCESS_TOKEN, ACCESS_TOKEN_SECRET)
     api = tweepy.API(auth)
     
-    listen_for_mentions("howrufeelingbot", api)
+    StreamListener = MyStreamListener()
+    stream = tweepy.Stream(auth = api.auth, listener=StreamListener)
+    
+    try:
+        stream.filter(track=['howrufeelingbot'])
+    except KeyboardInterrupt:
+        stream.disconnect()
+        print " Keyboard Interrupt: Stopped stream"
 
     
     
